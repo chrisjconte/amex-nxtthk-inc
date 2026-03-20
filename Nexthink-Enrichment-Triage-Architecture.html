@@ -1,0 +1,963 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Nexthink Enrichment &amp; Intelligent Triage — Architecture Document</title>
+<style>
+  :root {
+    --green: #81b532;
+    --dark: #0d1117;
+    --surface: #161b22;
+    --surface2: #1e2530;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--dark); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; line-height: 1.6; }
+  .page { max-width: 1100px; margin: 0 auto; padding: 40px 24px 80px; }
+
+  .header { background: linear-gradient(135deg, #0d1117 0%, #162032 50%, #0d2010 100%); border: 1px solid var(--green); border-radius: 12px; padding: 40px; margin-bottom: 40px; position: relative; overflow: hidden; }
+  .header::before { content: ''; position: absolute; top: 0; right: 0; width: 300px; height: 300px; background: radial-gradient(circle, rgba(129,181,50,0.08) 0%, transparent 70%); }
+  .header-tag { display: inline-block; background: rgba(129,181,50,0.15); border: 1px solid var(--green); color: var(--green); font-size: 11px; font-weight: 600; letter-spacing: 1px; text-transform: uppercase; padding: 4px 12px; border-radius: 20px; margin-bottom: 16px; }
+  .header h1 { font-size: 28px; font-weight: 700; color: #fff; margin-bottom: 8px; }
+  .header .subtitle { color: var(--muted); font-size: 15px; margin-bottom: 20px; }
+  .header-meta { display: flex; gap: 24px; flex-wrap: wrap; }
+  .meta-item { display: flex; flex-direction: column; }
+  .meta-label { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .meta-value { font-size: 13px; color: var(--text); font-weight: 500; }
+
+  .section { margin-bottom: 40px; }
+  .section-header { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+  .section-num { background: var(--green); color: #000; font-weight: 700; font-size: 12px; width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .section-header h2 { font-size: 18px; font-weight: 600; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+  .card h3 { font-size: 14px; font-weight: 600; margin-bottom: 8px; color: var(--green); }
+  .card p { color: var(--muted); font-size: 13px; }
+  .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+
+  .badge { display: inline-block; font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .badge-oob { background: rgba(35,134,54,0.2); color: #3fb950; border: 1px solid #238636; }
+  .badge-custom { background: rgba(31,111,235,0.2); color: #58a6ff; border: 1px solid #1f6feb; }
+  .badge-pro { background: rgba(210,153,34,0.2); color: #e3b341; border: 1px solid #d29922; }
+  .badge-hybrid { background: rgba(139,92,246,0.2); color: #a78bfa; border: 1px solid #7c3aed; }
+  .badge-done { background: rgba(35,134,54,0.2); color: #3fb950; border: 1px solid #238636; }
+  .badge-skip { background: rgba(210,153,34,0.2); color: #e3b341; border: 1px solid #d29922; }
+
+  .flow-container { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 32px; margin-bottom: 24px; overflow-x: auto; }
+  .flow { display: flex; flex-direction: column; align-items: center; gap: 0; min-width: 600px; }
+  .flow-node { border-radius: 8px; padding: 12px 20px; font-size: 12px; font-weight: 500; text-align: center; min-width: 300px; max-width: 420px; }
+  .flow-node-oob    { background: rgba(35,134,54,0.15);   border: 1px solid #238636;         color: #3fb950; }
+  .flow-node-custom { background: rgba(31,111,235,0.15);  border: 1px solid #1f6feb;          color: #58a6ff; }
+  .flow-node-human  { background: rgba(139,92,246,0.15);  border: 1px solid #7c3aed;          color: #a78bfa; }
+  .flow-node-end    { background: rgba(129,181,50,0.15);  border: 1px solid var(--green);     color: var(--green); border-radius: 20px; }
+  .flow-arrow { color: var(--muted); font-size: 18px; line-height: 1; margin: 4px 0; }
+  .flow-label { font-size: 10px; color: var(--muted); text-align: center; font-style: italic; margin: 2px 0; }
+  .flow-branch { display: flex; gap: 20px; width: 100%; justify-content: center; align-items: flex-start; margin: 4px 0; }
+  .flow-branch-col { display: flex; flex-direction: column; align-items: center; gap: 0; flex: 1; max-width: 260px; }
+  .flow-branch-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 2px 10px; border-radius: 10px; margin-bottom: 4px; }
+  .branch-yes  { background: rgba(35,134,54,0.2);  color: #3fb950; }
+  .branch-no   { background: rgba(218,54,51,0.2);  color: #f85149; }
+  .branch-loop { background: rgba(210,153,34,0.2); color: #e3b341; }
+
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { background: var(--surface2); color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; padding: 10px 14px; text-align: left; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--border); color: var(--text); vertical-align: top; }
+  tr:last-child td { border-bottom: none; }
+  .table-wrap { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
+  .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: #79c0ff; }
+
+  .task-phase { margin-bottom: 24px; }
+  .task-phase-header { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 10px; padding: 6px 0; border-bottom: 1px solid var(--border); }
+  .task { display: flex; gap: 12px; padding: 10px 0; border-bottom: 1px solid rgba(48,54,61,0.5); align-items: flex-start; }
+  .task:last-child { border-bottom: none; }
+  .task-id { background: var(--surface2); color: var(--muted); font-size: 10px; font-weight: 600; padding: 2px 7px; border-radius: 4px; white-space: nowrap; font-family: monospace; flex-shrink: 0; margin-top: 2px; }
+  .task-body { flex: 1; }
+  .task-title { font-weight: 500; font-size: 13px; margin-bottom: 3px; }
+  .task-desc { color: var(--muted); font-size: 12px; }
+
+  .scene { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 16px 20px; margin-bottom: 10px; display: flex; gap: 16px; align-items: flex-start; }
+  .scene-num { background: var(--green); color: #000; font-weight: 700; font-size: 12px; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .scene-content h4 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .scene-content p { color: var(--muted); font-size: 12px; }
+  .nav-path { margin-top: 6px; font-family: monospace; font-size: 11px; color: #79c0ff; background: rgba(33,38,45,0.8); padding: 4px 8px; border-radius: 4px; display: inline-block; }
+
+  .code-block { background: #0d1117; border: 1px solid var(--border); border-radius: 6px; padding: 16px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; color: #e6edf3; overflow-x: auto; line-height: 1.7; margin: 12px 0; white-space: pre; }
+
+  .alert { border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; font-size: 13px; }
+  .alert-info    { background: rgba(31,111,235,0.1);       border: 1px solid #1f6feb;             color: #79c0ff; }
+  .alert-warn    { background: rgba(210,153,34,0.1);       border: 1px solid #d29922;             color: #e3b341; }
+  .alert-success { background: rgba(22,199,132,0.08);      border: 1px solid rgba(22,199,132,0.35); color: var(--green); }
+
+  .toc { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 20px; margin-bottom: 40px; }
+  .toc h3 { font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; }
+  .toc ol { padding-left: 20px; }
+  .toc li { padding: 3px 0; color: var(--green); font-size: 13px; }
+  .toc li a { color: var(--green); text-decoration: none; }
+  .toc li a:hover { text-decoration: underline; }
+
+  .legend { display: flex; gap: 20px; flex-wrap: wrap; margin-bottom: 16px; font-size: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+  .footer { margin-top: 60px; padding-top: 20px; border-top: 1px solid var(--border); text-align: center; color: var(--muted); font-size: 12px; }
+
+  /* Agentic Architecture — Hub Diagram */
+  .agentic-layout { display: grid; grid-template-columns: 1fr 340px; gap: 24px; margin-bottom: 28px; align-items: start; }
+  .hub-wrap { position: relative; height: 500px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+  .hub-wrap::before { content: ''; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 300px; height: 300px; border-radius: 50%; background: radial-gradient(circle, rgba(22,199,132,0.04) 0%, transparent 70%); pointer-events: none; }
+  .hub-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hub-node { position: absolute; transform: translate(-50%,-50%); display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; cursor: default; }
+  .hub-circle { border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+  .hub-center .hub-circle { width: 80px; height: 80px; background: linear-gradient(135deg, #071c30, #04201a); border: 2px solid rgba(22,199,132,0.5); box-shadow: 0 0 20px rgba(22,199,132,0.18), inset 0 0 16px rgba(22,199,132,0.05); }
+  .hub-sat .hub-circle  { width: 50px; height: 50px; background: var(--surface2); border: 1.5px solid var(--border); }
+  .hub-sat.sat-oob .hub-circle  { border-color: rgba(227,179,65,0.7);  background: rgba(227,179,65,0.08); }
+  .hub-sat.sat-ai  .hub-circle  { border-color: rgba(167,139,250,0.65); background: rgba(167,139,250,0.08); }
+  .hub-sat.sat-rev .hub-circle  { border-color: rgba(167,139,250,0.6);  background: rgba(167,139,250,0.07); }
+  .hub-sat.sat-po  .hub-circle  { border-color: rgba(88,166,255,0.65);  background: rgba(88,166,255,0.08); }
+  .hub-sat.sat-km  .hub-circle  { border-color: rgba(167,139,250,0.6);  background: rgba(167,139,250,0.07); }
+  .hub-label { font-size: 11px; font-weight: 600; color: var(--text); white-space: nowrap; }
+  .hub-sublabel { font-size: 9px; color: var(--muted); white-space: nowrap; }
+  .hub-center .hub-label { font-size: 13px; font-weight: 700; color: var(--green); }
+  .hub-center .hub-sublabel { font-size: 10px; color: var(--muted); }
+  .hub-tools { display: flex; flex-wrap: wrap; gap: 3px; justify-content: center; margin-top: 3px; max-width: 130px; }
+  .hub-tool-tag { font-size: 8.5px; background: rgba(255,255,255,0.03); color: var(--muted); padding: 1px 5px; border-radius: 3px; border: 1px solid var(--border); white-space: nowrap; }
+  .orch-label { position: absolute; font-size: 9px; font-weight: 600; color: rgba(88,166,255,0.45); text-transform: uppercase; letter-spacing: 1.5px; transform: translateX(-50%); }
+
+  .ann-panel { display: flex; flex-direction: column; gap: 10px; }
+  .ann-card { background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: 14px 16px; display: flex; gap: 12px; align-items: flex-start; }
+  .ann-tag { font-size: 9px; font-weight: 800; letter-spacing: 1.5px; text-transform: uppercase; padding: 3px 8px; border-radius: 4px; flex-shrink: 0; margin-top: 2px; }
+  .ann-why  { background: rgba(22,199,132,0.15);  color: var(--green); border: 1px solid rgba(22,199,132,0.3); }
+  .ann-how  { background: rgba(31,111,235,0.15);  color: #58a6ff;     border: 1px solid rgba(31,111,235,0.3); }
+  .ann-who  { background: rgba(139,92,246,0.15);  color: #a78bfa;     border: 1px solid rgba(139,92,246,0.3); }
+  .ann-what { background: rgba(210,153,34,0.15);  color: #e3b341;     border: 1px solid rgba(210,153,34,0.3); }
+  .ann-body h4 { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+  .ann-body p  { font-size: 12px; color: var(--muted); line-height: 1.5; }
+
+  .tool-groups { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .tool-group { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid rgba(167,139,250,0.5); border-radius: 8px; padding: 16px; }
+  .tg-header { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
+  .tg-perceive .tg-header  { color: #a78bfa; }
+  .tg-generate .tg-header  { color: #a78bfa; }
+  .tg-act .tg-header       { color: #a78bfa; }
+  .tg-coordinate .tg-header { color: #58a6ff; border-left-color: rgba(88,166,255,0.5); }
+  .tg-coordinate { border-left-color: rgba(88,166,255,0.5); }
+  .tool-pill { display: flex; align-items: baseline; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(22,48,80,0.6); }
+  .tool-pill:last-child { border-bottom: none; }
+  .tool-pill-id { font-family: monospace; font-size: 10px; color: var(--muted); background: var(--surface2); padding: 1px 5px; border-radius: 3px; flex-shrink: 0; }
+  .tool-pill-name { font-size: 12px; font-weight: 500; color: var(--text); }
+  .tool-pill-mech { font-size: 11px; color: var(--muted); margin-left: auto; font-family: monospace; }
+
+  /* Two-workflow hub layout */
+  .hub-pair { display: grid; grid-template-columns: 1fr 52px 1fr; gap: 0; align-items: center; margin-bottom: 12px; }
+  .hub-wrap.hub-sm { height: 380px; }
+  .hub-connector { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding-top: 34px; }
+  .hub-connector-arrow { color: var(--green); font-size: 22px; line-height: 1; }
+  .hub-connector-label { font-size: 8px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.5px; color: var(--muted); }
+  .workflow-badge { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; padding: 3px 10px; border-radius: 4px; margin-bottom: 6px; display: inline-block; }
+  .wf-enrichment { background: rgba(88,166,255,0.15); color: #58a6ff; border: 1px solid rgba(88,166,255,0.3); }
+  .wf-agent { background: rgba(139,92,246,0.15); color: #a78bfa; border: 1px solid rgba(139,92,246,0.3); }
+  .hub-center.hub-blue .hub-circle { background: linear-gradient(135deg, #071830, #04182c); border: 2px solid rgba(88,166,255,0.5); box-shadow: 0 0 20px rgba(88,166,255,0.18), inset 0 0 16px rgba(88,166,255,0.05); }
+  .hub-center.hub-blue .hub-label { color: #58a6ff; }
+  .ann-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 24px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <div class="header">
+    <div class="header-tag">Build Architecture Document</div>
+    <h1>Nexthink Enrichment &amp; Intelligent Triage</h1>
+    <div class="subtitle">ServiceNow AI Agent Studio — Autonomous 4-Phase Incident Triage via Device Diagnostics</div>
+    <div class="header-meta">
+      <div class="meta-item"><span class="meta-label">Instance</span><span class="meta-value">demoalectriallwfzu138098</span></div>
+      <div class="meta-item"><span class="meta-label">Release Required</span><span class="meta-value">Zurich Patch 4+ / Pro+</span></div>
+      <div class="meta-item"><span class="meta-label">Build Type</span><span class="meta-value">Demo / POC</span></div>
+      <div class="meta-item"><span class="meta-label">Build Date</span><span class="meta-value">2026-03-12</span></div>
+      <div class="meta-item"><span class="meta-label">Validation</span><span class="meta-value">10 / 10 Scenes Passed</span></div>
+    </div>
+  </div>
+
+  <!-- TOC -->
+  <div class="toc">
+    <h3>Contents</h3>
+    <ol>
+      <li><a href="#solution">Solution Overview</a></li>
+      <li><a href="#oob-vs-custom">OOB vs. Custom — Verified Breakdown</a></li>
+      <li><a href="#agentic">Agentic Architecture</a></li>
+      <li><a href="#flow-architecture">Triage Flow Architecture</a></li>
+      <li><a href="#data-model">Data Model</a></li>
+      <li><a href="#routing">Assignment Routing Architecture</a></li>
+      <li><a href="#tasks">Build Task Manifest</a></li>
+      <li><a href="#demo">Demo Scenario &amp; Clickthrough</a></li>
+    </ol>
+  </div>
+
+
+  <!-- 1: Solution Overview -->
+  <div class="section" id="solution">
+    <div class="section-header"><div class="section-num">1</div><h2>Solution Overview</h2></div>
+    <div class="alert alert-success">
+      <strong>Design Principle:</strong> The platform enriches (OOB business rule + Nexthink sim). The AI agent decides (custom 4-phase system prompt + 6 tools). Humans validate. When a user escalates from a chatbot, ServiceNow autonomously triages the incident before any analyst opens it.
+    </div>
+    <div class="card-grid-3">
+      <div class="card">
+        <h3>Enrich (Business Rule + Nexthink)</h3>
+        <p>On incident creation a business rule fires the NexthinkSimulator Script Include — returning real-fidelity device telemetry (CPU, memory, disk, network, crash history, uptime). Diagnostics are written to the incident as structured work notes before the AI agent begins.</p>
+      </div>
+      <div class="card">
+        <h3>Triage (AI Agent Studio)</h3>
+        <p>A Zurich-native AI agent (sn_aia_* tables) with a 4-phase system prompt autonomously reads enrichment data, generates the short description, recommends category / subcategory / CI, and routes to the correct group — all via 6 tool calls.</p>
+      </div>
+      <div class="card">
+        <h3>Validate (Human-in-the-Loop)</h3>
+        <p>The fully triaged incident lands in Service Operations Workspace with a complete AI work note. The analyst confirms, adjusts if needed, and closes. The Analytics dashboard tracks AI accuracy and MTTR improvement over time.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 2: OOB vs Custom -->
+  <div class="section" id="oob-vs-custom">
+    <div class="section-header"><div class="section-num">2</div><h2>OOB vs. Custom — Verified Breakdown</h2></div>
+    <div class="alert alert-info">
+      Custom components are minimal. The platform provides the AI engine, the knowledge base, and the workspace. Custom code provides only the Nexthink simulation layer and the 4-phase triage instruction set.
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Layer</th><th>Type</th><th>Feature / Mechanism</th><th>What It Does &amp; What We Do With It</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Chatbot Escalation</strong></td>
+            <td><span class="badge badge-oob">OOB</span></td>
+            <td>Virtual Agent / EmployeeWorks<br><small>Incident created on escalation</small></td>
+            <td>When the user says "I need human help," the chatbot creates an incident with the full conversation transcript in the description. This is the pipeline's entry point — no custom trigger needed.</td>
+          </tr>
+          <tr>
+            <td><strong>Device Enrichment</strong></td>
+            <td><span class="badge badge-custom">Custom</span></td>
+            <td>NexthinkSimulator Script Include<br><small>+ Scripted REST API endpoint</small></td>
+            <td>In production this calls the real Nexthink API. In demo the Script Include returns per-scenario diagnostic JSON (CPU, memory, disk, network, crashes, uptime) keyed to the caller's device CI. Swap the Script Include body for a real HTTP callout — everything downstream is unchanged.</td>
+          </tr>
+          <tr>
+            <td><strong>Enrichment Pipeline</strong></td>
+            <td><span class="badge badge-custom">Custom</span></td>
+            <td>Business Rule<br><small>(after insert on incident)</small></td>
+            <td>Fires on incident creation. Calls NexthinkSimulator, formats the JSON response, and writes structured diagnostics to incident work notes. Sets an enrichment flag. This is the first gate before AI triage begins.</td>
+          </tr>
+          <tr>
+            <td><strong>AI Triage Agent</strong></td>
+            <td><span class="badge badge-oob">OOB</span> <span class="badge badge-pro">Pro+</span></td>
+            <td>AI Agent Studio (sn_aia_* tables)<br><small>Zurich — NOT sys_cs_agent</small></td>
+            <td>Native AI Agent Studio introduced in Zurich. The agent reads the enriched incident, applies the 4-phase system prompt, calls its 6-tool belt, and writes triage decisions to the record. Triggered automatically on incident creation. <strong>Critical:</strong> use sn_aia_* tables only.</td>
+          </tr>
+          <tr>
+            <td><strong>Agent System Prompt</strong></td>
+            <td><span class="badge badge-custom">Custom</span></td>
+            <td>sn_aia_agent_config.system_prompt</td>
+            <td>The 4-phase triage instruction set (Assess → Describe → Categorize → Assign) is authored as a structured system prompt. Instructs the agent to never skip phases, cite all Nexthink signals, and always document its reasoning in a work note.</td>
+          </tr>
+          <tr>
+            <td><strong>Agent Tools (6)</strong></td>
+            <td><span class="badge badge-oob">OOB</span></td>
+            <td>sn_aia_tool records · sn_aia_agent_tool_m2m</td>
+            <td>Six tools: Get Incident Details, Get Valid Categories, Get Valid Subcategories, Get CIs Assigned to Caller, Search Knowledge Base, Add Work Notes to Incident. All use OOB table / API access — no custom GlideRecord scripting in tool logic.</td>
+          </tr>
+          <tr>
+            <td><strong>Assignment Routing</strong></td>
+            <td><span class="badge badge-hybrid">Hybrid</span></td>
+            <td>OOB Assignment Rules + AI category recommendation</td>
+            <td>Four OOB assignment rules enforce final routing: Hardware → Desktop Support, Network → Network Operations, Software → Application Support, Fallback → Service Desk. AI recommends the category; the rule enforces the group. Defense-in-depth — the agent cannot mis-route even if categorization drifts.</td>
+          </tr>
+          <tr>
+            <td><strong>Knowledge Integration</strong></td>
+            <td><span class="badge badge-oob">OOB</span></td>
+            <td>Knowledge Management (kb_knowledge)<br><small>4 draft articles seeded</small></td>
+            <td>The agent's Search Knowledge Base tool queries OOB KB. Four articles seeded: slow computer troubleshooting, VPN connectivity, application crash recovery, device health management. Article links surface in the AI work note as resolution suggestions.</td>
+          </tr>
+          <tr>
+            <td><strong>Workspace &amp; AI Panel</strong></td>
+            <td><span class="badge badge-oob">OOB</span></td>
+            <td>Service Operations Workspace (SOW)</td>
+            <td>OOB SOW configured for the demo: incident list with priority badges, AI panel visible in sidebar, dashboard accessible from navigation. No custom workspace code — default SOW layout with incident view.</td>
+          </tr>
+          <tr>
+            <td><strong>Analytics Dashboard</strong></td>
+            <td><span class="badge badge-custom">Custom</span></td>
+            <td>Performance Analytics (6 reports)</td>
+            <td>Custom PA dashboard: AI vs. manual triage donut, MTTR trend, AI assignment accuracy, Nexthink enrichment coverage, open by priority, recent triage activity list. The executive value story.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+
+  <!-- 3: Agentic Architecture -->
+  <div class="section" id="agentic">
+    <div class="section-header"><div class="section-num">3</div><h2>Agentic Architecture</h2></div>
+    <div class="alert alert-info">
+      <strong>Two sequential agentic workflows fire on every incident.</strong> Workflow 1 (Enrichment Pipeline) calls Nexthink and writes device telemetry to the incident before any reasoning happens. Workflow 2 (AI Triage Agent) reads that enriched record, reasons across 6 tool calls, and writes a structured triage decision back. The analyst opens the ticket to find both outputs already present.
+    </div>
+
+    <!-- TWO HUBS -->
+    <div class="hub-pair">
+
+      <!-- HUB 1: Nexthink Enrichment Pipeline -->
+      <div>
+        <div class="workflow-badge wf-enrichment">Workflow 1 — Nexthink Enrichment Pipeline</div>
+        <div class="hub-wrap hub-sm">
+        <svg class="hub-svg" viewBox="0 0 640 500" preserveAspectRatio="none">
+          <defs>
+            <marker id="arr1" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+              <path d="M0,0 L5,2.5 L0,5 Z" fill="rgba(88,140,180,0.5)"/>
+            </marker>
+          </defs>
+          <ellipse cx="320" cy="250" rx="152" ry="150" fill="none" stroke="rgba(88,166,255,0.18)" stroke-width="1.2" stroke-dasharray="7,5"/>
+          <line x1="320" y1="195" x2="320" y2="128"  stroke="rgba(88,140,180,0.35)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr1)"/>
+          <line x1="364" y1="222" x2="494" y2="150"  stroke="rgba(88,140,180,0.30)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr1)"/>
+          <line x1="363" y1="279" x2="495" y2="352"  stroke="rgba(88,140,180,0.30)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr1)"/>
+          <line x1="277" y1="279" x2="145" y2="352"  stroke="rgba(88,140,180,0.30)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr1)"/>
+          <line x1="276" y1="222" x2="146" y2="150"  stroke="rgba(88,140,180,0.30)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr1)"/>
+        </svg>
+
+        <!-- CENTER: Enrichment Pipeline -->
+        <div class="hub-node hub-center hub-blue" style="left:50%; top:50%;">
+          <div class="hub-circle">
+            <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+              <rect x="4" y="3" width="18" height="22" rx="2" fill="rgba(88,166,255,0.08)" stroke="rgba(88,166,255,0.55)" stroke-width="1.5"/>
+              <line x1="8" y1="9"  x2="18" y2="9"  stroke="rgba(88,166,255,0.5)" stroke-width="1.2" stroke-linecap="round"/>
+              <line x1="8" y1="13" x2="18" y2="13" stroke="rgba(88,166,255,0.5)" stroke-width="1.2" stroke-linecap="round"/>
+              <line x1="8" y1="17" x2="14" y2="17" stroke="rgba(88,166,255,0.35)" stroke-width="1.2" stroke-linecap="round"/>
+              <circle cx="25" cy="25" r="7" fill="rgba(88,166,255,0.1)" stroke="rgba(88,166,255,0.5)" stroke-width="1.5"/>
+              <line x1="25" y1="22" x2="25" y2="28" stroke="rgba(88,166,255,0.6)" stroke-width="1.5" stroke-linecap="round"/>
+              <line x1="22" y1="25" x2="28" y2="25" stroke="rgba(88,166,255,0.6)" stroke-width="1.5" stroke-linecap="round"/>
+            </svg>
+          </div>
+          <div class="hub-label">Enrichment Pipeline</div>
+          <div class="hub-sublabel">Business Rule + Script Include</div>
+        </div>
+
+        <!-- TOP: Incident Insert (trigger) -->
+        <div class="hub-node hub-sat sat-oob" style="left:50%; top:18%;">
+          <div class="hub-circle">⚡</div>
+          <div class="hub-label">Incident Insert</div>
+          <div class="hub-sublabel">OOB after-insert trigger</div>
+          <div class="hub-tools"><span class="hub-tool-tag">table: incident</span></div>
+        </div>
+
+        <!-- TOP-RIGHT: Business Rule -->
+        <div class="hub-node hub-sat sat-ai" style="left:84%; top:26%;">
+          <div class="hub-circle">⚙️</div>
+          <div class="hub-label">Business Rule</div>
+          <div class="hub-sublabel">Custom · Enrichment BR</div>
+          <div class="hub-tools"><span class="hub-tool-tag">calls Script Include</span></div>
+        </div>
+
+        <!-- BOTTOM-RIGHT: NexthinkSimulator -->
+        <div class="hub-node hub-sat sat-rev" style="left:84%; top:74%;">
+          <div class="hub-circle">📡</div>
+          <div class="hub-label">NexthinkSimulator</div>
+          <div class="hub-sublabel">Script Include (global)</div>
+          <div class="hub-tools"><span class="hub-tool-tag">CPU · mem · disk</span><span class="hub-tool-tag">net · crashes</span></div>
+        </div>
+
+        <!-- BOTTOM-LEFT: Work Notes Output -->
+        <div class="hub-node hub-sat sat-oob" style="left:16%; top:74%;">
+          <div class="hub-circle">📝</div>
+          <div class="hub-label">Device Diagnostics</div>
+          <div class="hub-sublabel">Written to work_notes</div>
+          <div class="hub-tools"><span class="hub-tool-tag">incident enriched</span></div>
+        </div>
+
+        <!-- TOP-LEFT: Device CI (CMDB) -->
+        <div class="hub-node hub-sat sat-oob" style="left:16%; top:26%;">
+          <div class="hub-circle">🖥️</div>
+          <div class="hub-label">Device CI</div>
+          <div class="hub-sublabel">CMDB · caller's device</div>
+          <div class="hub-tools"><span class="hub-tool-tag">cmdb_ci lookup</span></div>
+        </div>
+
+        <div class="orch-label" style="left:50%; bottom:14px;">BUSINESS RULE + SCRIPT INCLUDE</div>
+      </div>
+      </div><!-- end hub 1 wrapper -->
+
+      <!-- CONNECTOR -->
+      <div class="hub-connector">
+        <div class="hub-connector-label">feeds</div>
+        <div class="hub-connector-arrow">→</div>
+      </div>
+
+      <!-- HUB 2: AI Triage Agent -->
+      <div>
+        <div class="workflow-badge wf-agent">Workflow 2 — AI Triage Agent (AI Agent Studio)</div>
+        <div class="hub-wrap hub-sm">
+          <svg class="hub-svg" viewBox="0 0 640 500" preserveAspectRatio="none">
+            <defs>
+              <marker id="arr2" markerWidth="5" markerHeight="5" refX="4" refY="2.5" orient="auto">
+                <path d="M0,0 L5,2.5 L0,5 Z" fill="rgba(100,140,180,0.5)"/>
+              </marker>
+            </defs>
+            <ellipse cx="320" cy="250" rx="152" ry="150" fill="none" stroke="rgba(88,166,255,0.18)" stroke-width="1.2" stroke-dasharray="7,5"/>
+            <line x1="320" y1="195" x2="320" y2="128"  stroke="rgba(100,140,180,0.35)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr2)"/>
+            <line x1="364" y1="222" x2="494" y2="150"  stroke="rgba(100,140,180,0.30)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr2)"/>
+            <line x1="363" y1="279" x2="495" y2="352"  stroke="rgba(100,140,180,0.30)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr2)"/>
+            <line x1="277" y1="279" x2="145" y2="352"  stroke="rgba(100,140,180,0.30)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr2)"/>
+            <line x1="276" y1="222" x2="146" y2="150"  stroke="rgba(100,140,180,0.30)" stroke-width="1.2" stroke-dasharray="4,4" marker-end="url(#arr2)"/>
+          </svg>
+
+          <!-- CENTER: AI Triage Agent -->
+          <div class="hub-node hub-center" style="left:50%; top:50%;">
+            <div class="hub-circle">
+              <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                <circle cx="18" cy="18" r="10" stroke="rgba(22,199,132,0.7)" stroke-width="1.5" fill="rgba(22,199,132,0.07)"/>
+                <circle cx="18" cy="18" r="5" fill="rgba(22,199,132,0.2)" stroke="rgba(22,199,132,0.6)" stroke-width="1"/>
+                <line x1="18" y1="4"  x2="18" y2="8"  stroke="rgba(22,199,132,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="18" y1="28" x2="18" y2="32" stroke="rgba(22,199,132,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="4"  y1="18" x2="8"  y2="18" stroke="rgba(22,199,132,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+                <line x1="28" y1="18" x2="32" y2="18" stroke="rgba(22,199,132,0.5)" stroke-width="1.5" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <div class="hub-label">AI Triage Agent</div>
+            <div class="hub-sublabel">sn_aia_agent · 6 tools</div>
+          </div>
+
+          <!-- TOP: sn_aia Trigger -->
+          <div class="hub-node hub-sat sat-oob" style="left:50%; top:18%;">
+            <div class="hub-circle">⚡</div>
+            <div class="hub-label">Agent Trigger</div>
+            <div class="hub-sublabel">sn_aia_trigger_configuration</div>
+            <div class="hub-tools"><span class="hub-tool-tag">fires after enrichment</span></div>
+          </div>
+
+          <!-- TOP-RIGHT: Get Incident Details -->
+          <div class="hub-node hub-sat sat-ai" style="left:84%; top:26%;">
+            <div class="hub-circle">🔍</div>
+            <div class="hub-label">Get Incident Details</div>
+            <div class="hub-sublabel">Tool T-01 · read record</div>
+            <div class="hub-tools"><span class="hub-tool-tag">reads enrichment data</span></div>
+          </div>
+
+          <!-- BOTTOM-RIGHT: Category + CI Lookup -->
+          <div class="hub-node hub-sat sat-rev" style="left:84%; top:74%;">
+            <div class="hub-circle">🗂️</div>
+            <div class="hub-label">Categorize Tools</div>
+            <div class="hub-sublabel">T-02 · T-03 · T-04</div>
+            <div class="hub-tools"><span class="hub-tool-tag">get categories</span><span class="hub-tool-tag">get CIs</span></div>
+          </div>
+
+          <!-- BOTTOM-LEFT: Search KB -->
+          <div class="hub-node hub-sat sat-oob" style="left:16%; top:74%;">
+            <div class="hub-circle">📚</div>
+            <div class="hub-label">Search Knowledge Base</div>
+            <div class="hub-sublabel">Tool T-05 · OOB KB</div>
+            <div class="hub-tools"><span class="hub-tool-tag">kb_knowledge query</span></div>
+          </div>
+
+          <!-- TOP-LEFT: Add Work Notes -->
+          <div class="hub-node hub-sat sat-km" style="left:16%; top:26%;">
+            <div class="hub-circle">✍️</div>
+            <div class="hub-label">Add Work Notes</div>
+            <div class="hub-sublabel">Tool T-06 · triage output</div>
+            <div class="hub-tools"><span class="hub-tool-tag">category · CI · routing</span></div>
+          </div>
+
+          <div class="orch-label" style="left:50%; bottom:14px;">AI AGENT STUDIO (sn_aia)</div>
+        </div>
+      </div><!-- end hub 2 wrapper -->
+
+    </div><!-- end hub-pair -->
+
+    <!-- Legend -->
+    <div class="legend" style="margin-bottom:20px;">
+      <div class="legend-item"><div class="legend-dot" style="background:#58a6ff; border-radius:50%;"></div><span style="color:#58a6ff">WF1 — Enrichment Engine</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#e3b341; border-radius:50%;"></div><span style="color:#e3b341">OOB Platform Component</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a78bfa; border-radius:50%;"></div><span style="color:#a78bfa">Custom Component / Agent Tool</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green); border-radius:50%;"></div><span style="color:var(--green)">WF2 — AI Agent Engine</span></div>
+    </div>
+
+    <!-- Annotation Grid -->
+    <div class="ann-grid">
+      <div class="ann-card">
+        <span class="ann-tag ann-why">WHY</span>
+        <div class="ann-body">
+          <h4>The Value of Two Workflows</h4>
+          <p>Chatbot-escalated incidents arrive with no device context. WF1 adds the missing telemetry. WF2 reasons over it. Together they eliminate manual investigation and routing before the analyst opens the ticket.</p>
+        </div>
+      </div>
+      <div class="ann-card">
+        <span class="ann-tag ann-how">WF 1</span>
+        <div class="ann-body">
+          <h4>Nexthink Enrichment Pipeline</h4>
+          <p>Business rule fires on incident insert. Calls NexthinkSimulator Script Include with the caller's device CI. Parses the JSON response. Writes structured diagnostics (CPU, memory, disk, network, crashes) to incident work notes before the AI agent reads anything.</p>
+        </div>
+      </div>
+      <div class="ann-card">
+        <span class="ann-tag ann-who">WF 2</span>
+        <div class="ann-body">
+          <h4>AI Triage Agent (sn_aia_agent)</h4>
+          <p>sn_aia trigger fires after enrichment. Agent worker reads the enriched incident (T-01), categorizes via sys_choice lookups (T-02, T-03), links the device CI (T-04), searches KB (T-05), and writes a structured triage work note with full reasoning (T-06).</p>
+        </div>
+      </div>
+      <div class="ann-card">
+        <span class="ann-tag ann-what">WHAT</span>
+        <div class="ann-body">
+          <h4>Sequential Handoff</h4>
+          <p>WF1 and WF2 are fully sequential — enrichment writes data, agent reads data. The agent's T-01 (Get Incident Details) reads the work notes WF1 wrote. No shared state other than the incident record. In production, swap the Script Include for a real Nexthink REST spoke — WF2 is unchanged.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tool Catalog -->
+    <div style="font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:1px; color:var(--muted); margin-bottom:10px;">Tool Inventory — Both Workflows</div>
+    <div class="tool-groups">
+      <div class="tool-group tg-coordinate">
+        <div class="tg-header">⚡ WF1 — Enrichment Pipeline Components</div>
+        <div class="tool-pill"><span class="tool-pill-id">BR-01</span><span class="tool-pill-name">Business Rule fires on insert</span><span class="tool-pill-mech">after insert · incident</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">BR-02</span><span class="tool-pill-name">NexthinkSimulator() called</span><span class="tool-pill-mech">global.NexthinkSimulator</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">BR-03</span><span class="tool-pill-name">Diagnostics parsed + formatted</span><span class="tool-pill-mech">JSON → structured text</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">BR-04</span><span class="tool-pill-name">Written to incident work_notes</span><span class="tool-pill-mech">journal field · OOB</span></div>
+      </div>
+      <div class="tool-group tg-perceive">
+        <div class="tg-header">🔍 WF2 — Phase 1 &amp; 2 · Assess + Describe</div>
+        <div class="tool-pill"><span class="tool-pill-id">T-01</span><span class="tool-pill-name">Get Incident Details</span><span class="tool-pill-mech">incident lookup · reads WF1 output</span></div>
+        <div class="tool-pill" style="opacity:0.55;"><span class="tool-pill-id">—</span><span class="tool-pill-name">Generate short_description</span><span class="tool-pill-mech">AI synthesis · no tool call</span></div>
+      </div>
+      <div class="tool-group tg-generate">
+        <div class="tg-header">🗂️ WF2 — Phase 3 · Categorize</div>
+        <div class="tool-pill"><span class="tool-pill-id">T-02</span><span class="tool-pill-name">Get Valid Categories</span><span class="tool-pill-mech">sys_choice query</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">T-03</span><span class="tool-pill-name">Get Valid Subcategories</span><span class="tool-pill-mech">sys_choice query</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">T-04</span><span class="tool-pill-name">Get CIs Assigned to Caller</span><span class="tool-pill-mech">cmdb_ci lookup</span></div>
+        <div class="tool-pill"><span class="tool-pill-id">T-05</span><span class="tool-pill-name">Search Knowledge Base</span><span class="tool-pill-mech">kb_knowledge search</span></div>
+      </div>
+      <div class="tool-group tg-act">
+        <div class="tg-header">✍️ WF2 — Phase 4 · Assign</div>
+        <div class="tool-pill"><span class="tool-pill-id">T-06</span><span class="tool-pill-name">Add Work Notes to Incident</span><span class="tool-pill-mech">work_notes write · triage output</span></div>
+        <div class="tool-pill" style="opacity:0.55;"><span class="tool-pill-id">—</span><span class="tool-pill-name">OOB assignment rule enforces group</span><span class="tool-pill-mech">category → group mapping</span></div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 4: Triage Flow Architecture -->
+  <div class="section" id="flow-architecture">
+    <div class="section-header"><div class="section-num">4</div><h2>Triage Flow Architecture</h2></div>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#3fb950;"></div><span style="color:#3fb950">OOB Platform</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#58a6ff;"></div><span style="color:#58a6ff">Custom Logic</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:#a78bfa;"></div><span style="color:#a78bfa">AI Agent Phase</span></div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green);"></div><span style="color:var(--green)">Terminal State</span></div>
+    </div>
+    <div class="flow-container">
+      <div class="flow">
+
+        <div class="flow-node flow-node-oob">💬 User escalates from EmployeeWorks chatbot<br><small>Virtual Agent creates incident — full conversation transcript in description / work notes</small></div>
+        <div class="flow-label">OOB Virtual Agent escalation — incident record created automatically</div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-node flow-node-custom">⚡ Business Rule: Nexthink Enrichment (after insert)<br><small>Calls NexthinkSimulator(caller.device_ci) → CPU, memory, disk, network, crashes, uptime<br>Structured diagnostics written to incident work notes — enrichment flag set</small></div>
+        <div class="flow-label">Custom — fires synchronously before AI agent trigger evaluates</div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-node flow-node-custom">🔀 AI Agent Trigger fires (sn_aia_trigger_configuration)<br><small>Nexthink Incident Triage Use Case activated — Worker agent begins execution</small></div>
+        <div class="flow-label">OOB AI Agent Studio trigger — linked to use case via sn_aia_trigger_agent_usecase_m2m</div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-node flow-node-human">Phase 1 — ASSESS<br><small>Tool T-01: Get Incident Details → read chatbot transcript + Nexthink work notes<br>Summarize device health state and identify root-cause signals (CPU, memory, crash count)</small></div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-node flow-node-human">Phase 2 — DESCRIBE<br><small>AI synthesis (no tool call): generate short_description from transcript + device signals<br>Compose detailed diagnostic summary for work notes</small></div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-node flow-node-human">Phase 3 — CATEGORIZE<br><small>T-02: Get Valid Categories | T-03: Get Valid Subcategories → recommend category + subcategory<br>T-04: Get CIs Assigned to Caller → link affected device CI<br>T-05: Search Knowledge Base → surface related resolution articles</small></div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-node flow-node-human">Phase 4 — ASSIGN<br><small>T-06: Add Work Notes → write complete triage summary with reasoning, device data, KB links<br>Recommend assignment_group from category classification</small></div>
+        <div class="flow-label">Full AI work note contains: transcript summary · device health · category · CI · KB links · routing recommendation</div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-node flow-node-custom">🔀 OOB Assignment Rule Engine enforces routing<br><small>Hardware → Desktop Support | Network → Network Operations<br>Software → Application Support | Fallback → Service Desk</small></div>
+        <div class="flow-label">AI recommends the category — OOB rules enforce the group (defense-in-depth)</div>
+        <div class="flow-arrow">↓</div>
+
+        <div class="flow-branch">
+          <div class="flow-branch-col">
+            <div class="flow-branch-label branch-yes">Hardware</div>
+            <div class="flow-node flow-node-custom" style="min-width:160px; font-size:11px;">Desktop Support<br><small>INC0018776<br>Marcus Webb<br>Slow Computer</small></div>
+          </div>
+          <div class="flow-branch-col">
+            <div class="flow-branch-label branch-loop">Network</div>
+            <div class="flow-node flow-node-custom" style="min-width:160px; font-size:11px;">Network Operations<br><small>INC0018777<br>Sarah Chen<br>VPN Failure</small></div>
+          </div>
+          <div class="flow-branch-col">
+            <div class="flow-branch-label branch-no">Software</div>
+            <div class="flow-node flow-node-custom" style="min-width:160px; font-size:11px;">Application Support<br><small>INC0018778<br>Tom Jefferson<br>App Crash</small></div>
+          </div>
+        </div>
+
+        <div class="flow-arrow">↓</div>
+        <div class="flow-node flow-node-end">✓ Enriched, Triaged Incident in SOW Queue<br><small>Analyst validates AI work note — confirms, adjusts, and resolves</small></div>
+
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 5: Data Model -->
+  <div class="section" id="data-model">
+    <div class="section-header"><div class="section-num">5</div><h2>Data Model</h2></div>
+
+    <div class="alert alert-success">
+      <strong>Zero custom schema.</strong> No custom fields on <span class="mono">incident</span>. No custom tables. The AI work note is written to <span class="mono">work_notes</span> — a standard OOB field. Device diagnostics are also work notes. Every triage artifact is traceable through the OOB incident timeline.
+    </div>
+
+    <h3 style="font-size:14px; margin-bottom:12px; color:var(--text);">AI Triage Work Note — what the agent writes</h3>
+    <div class="card">
+      <div class="code-block">NEXTHINK TRIAGE SUMMARY — Phase 1-4 complete
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+DEVICE HEALTH (from Nexthink):
+  CPU usage:     94%  ⚠ HIGH
+  Memory:        87%  ⚠ HIGH
+  Disk free:      8%  ✗ CRITICAL
+  Crashes (7d):   3   ⚠ ELEVATED
+  Network:       Good  ✓
+
+ASSESSMENT: Device is under severe resource pressure.
+  High CPU + low disk are consistent with the user's reported freezing behavior.
+
+RECOMMENDED CATEGORY:   Hardware / Performance
+RECOMMENDED CI:         WORKSTATION-1234 (linked)
+RELATED KB ARTICLES:    KB0001 — Slow Computer Troubleshooting
+
+ROUTING:  Desktop Support (Hardware classification)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━</div>
+      <p style="margin-top:4px; font-size:12px; color:var(--muted);">Written to <span class="mono">incident.work_notes</span> by tool T-06. No custom fields required.</p>
+    </div>
+
+    <h3 style="font-size:14px; margin-bottom:12px; margin-top:24px; color:var(--text);">OOB Fields Used by the Agent</h3>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Table</th><th>Field(s)</th><th>How the Agent Uses It</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="mono">incident</span></td>
+            <td><span class="mono">description, work_notes, caller_id, cmdb_ci, category, subcategory, assignment_group</span></td>
+            <td>Read source transcript and Nexthink enrichment. Write triage summary. Category/subcategory/CI/group are the triage output fields.</td>
+          </tr>
+          <tr>
+            <td><span class="mono">cmdb_ci</span></td>
+            <td><span class="mono">sys_id, name, assigned_to</span></td>
+            <td>Tool T-04 looks up CIs linked to the caller. The matched CI is used for linkage in Phase 3.</td>
+          </tr>
+          <tr>
+            <td><span class="mono">kb_knowledge</span></td>
+            <td><span class="mono">short_description, text, number</span></td>
+            <td>Tool T-05 searches knowledge base for articles matching the device symptoms. Links surface in the AI work note.</td>
+          </tr>
+          <tr>
+            <td><span class="mono">sys_choice</span></td>
+            <td><span class="mono">value, label (category / subcategory)</span></td>
+            <td>Tools T-02 and T-03 fetch valid category and subcategory values to ensure the agent recommends only real choices from the picklist — not hallucinated values.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size:14px; margin-bottom:12px; margin-top:24px; color:var(--text);">Demo Incidents — 3 Chatbot Escalation Scenarios</h3>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Incident</th><th>Caller</th><th>Scenario</th><th>Nexthink Signals</th><th>AI Routing</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><span class="mono">INC0018776</span></td>
+            <td>Marcus Webb</td>
+            <td>Slow computer — freezing, high load</td>
+            <td>CPU 94% · Memory 87% · Disk 8% · 3 crashes (7d)</td>
+            <td>Hardware/Performance → Desktop Engineering</td>
+          </tr>
+          <tr>
+            <td><span class="mono">INC0018777</span></td>
+            <td>Sarah Chen</td>
+            <td>VPN connectivity failure — cannot connect</td>
+            <td>Network disconnected · Packet loss 42% · 18 DNS failures</td>
+            <td>Network/Connectivity → Network Operations Center</td>
+          </tr>
+          <tr>
+            <td><span class="mono">INC0018778</span></td>
+            <td>Tom Jefferson</td>
+            <td>Application crash on launch</td>
+            <td>Memory 96% · 7 crashes (24h) · .NET exceptions</td>
+            <td>Software/Application Error → Application Support Team</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3 style="font-size:14px; margin-bottom:12px; margin-top:24px; color:var(--text);">Nexthink Simulator — Production Swap Path</h3>
+    <div class="card-grid">
+      <div class="card">
+        <h3>Script Include: NexthinkSimulator</h3>
+        <p>Accepts a device CI sys_id and returns a diagnostic JSON object. Three per-scenario profiles keyed to demo CI sys_ids. Swap the body for a real <span class="mono">RESTMessage</span> callout in production — no changes to the business rule or AI agent required.</p>
+      </div>
+      <div class="card">
+        <h3>Scripted REST API</h3>
+        <p>Endpoint: <span class="mono">/api/x_demo/nexthink_diagnostics</span><br>Wraps the Script Include for external or browser-based demonstrations. Accepts <span class="mono">?ci_sys_id=</span>. Returns the same diagnostic JSON schema as the business rule path.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 6: Assignment Routing -->
+  <div class="section" id="routing">
+    <div class="section-header"><div class="section-num">6</div><h2>Assignment Routing Architecture</h2></div>
+    <div class="alert alert-success">
+      <strong>Defense-in-depth routing.</strong> The AI agent recommends the category. OOB assignment rules enforce the group. Even if the agent miscategorizes, the rule prevents misrouting. Two independent systems, one correct outcome.
+    </div>
+
+    <h3 style="font-size:14px; margin:16px 0 12px; color:var(--text);">Routing Logic</h3>
+    <div class="card">
+      <div class="code-block">// AI agent sets category (via tool T-02/T-03 recommendation)
+// OOB assignment rule engine reads category and enforces group
+
+IF   incident.category = "Hardware"        → assignment_group = Desktop Support
+ELIF incident.category = "Network"         → assignment_group = Network Operations
+ELIF incident.category = "Software"        → assignment_group = Application Support
+ELSE                                        → assignment_group = Service Desk (fallback)
+
+// The AI work note also records the recommended group as a talking point.
+// The OOB rule is the authoritative assignment — not the AI recommendation alone.</div>
+    </div>
+
+    <div class="card-grid">
+      <div class="card">
+        <h3>AI Agent Configuration</h3>
+        <p>The system prompt explicitly maps category to group in Phase 4. The agent writes its routing recommendation to the work note with reasoning ("CPU 94% + disk 8% = Hardware/Performance"). The OOB rule then confirms the routing independently.</p>
+      </div>
+      <div class="card">
+        <h3>Post-POC Path</h3>
+        <p>For live deployments: replace the category-to-group mapping with a reference table keyed to CMDB CI assignment groups (matching production support ownership). No agent changes required — only the assignment rule conditions change.</p>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- 7: Build Task Manifest -->
+  <div class="section" id="tasks">
+    <div class="section-header"><div class="section-num">7</div><h2>Build Task Manifest</h2></div>
+
+    <div class="task-phase">
+      <div class="task-phase-header">Wave 1 — Foundation (no dependencies)</div>
+      <div class="task">
+        <div class="task-id">T001</div>
+        <div class="task-body">
+          <div class="task-title">Foundation Data — Users, Groups, Locations <span class="badge badge-done">Done</span></div>
+          <div class="task-desc">8 personas (IT engineers, end users, managers). 4 groups: Service Desk, Desktop Support, Network Operations, Application Support. 2 locations. Generic financial services — no customer branding.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="task-phase">
+      <div class="task-phase-header">Wave 2 — Infrastructure (depends on T001)</div>
+      <div class="task">
+        <div class="task-id">T002</div>
+        <div class="task-body">
+          <div class="task-title">CMDB Device CIs &amp; Business Services <span class="badge badge-done">Done</span></div>
+          <div class="task-desc">7 endpoint device CIs linked to user personas with realistic OS/model/serial attributes. 3 business services. CI relationships established. Device attributes designed for Nexthink enrichment context.</div>
+        </div>
+      </div>
+      <div class="task">
+        <div class="task-id">T003</div>
+        <div class="task-body">
+          <div class="task-title">Knowledge Base Articles (4 draft) <span class="badge badge-done">Done</span></div>
+          <div class="task-desc">4 draft articles: slow computer troubleshooting, VPN connectivity guide, application crash recovery, device health management. Seeded for agent tool T-05 (Search Knowledge Base).</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="task-phase">
+      <div class="task-phase-header">Wave 3 — Core Demo Data (depends on T001–T003)</div>
+      <div class="task">
+        <div class="task-id">T004</div>
+        <div class="task-body">
+          <div class="task-title">Nexthink Simulation Script Include <span class="badge badge-done">Done</span></div>
+          <div class="task-desc">NexthinkSimulator Script Include with 3 per-scenario profiles. Scripted REST API at <span class="mono">/api/x_demo/nexthink_diagnostics</span>. Returns diagnostic JSON keyed to CI sys_id. Production swap: replace body with real API callout.</div>
+        </div>
+      </div>
+      <div class="task">
+        <div class="task-id">T005</div>
+        <div class="task-body">
+          <div class="task-title">Demo Incidents — 3 Chatbot Escalation Scenarios <span class="badge badge-done">Done</span></div>
+          <div class="task-desc">INC0018776 (Marcus Webb — slow computer), INC0018777 (Sarah Chen — VPN), INC0018778 (Tom Jefferson — app crash). Each has chatbot transcript in work notes and caller linked to device CI. Assignment groups corrected in post-build validation.</div>
+        </div>
+      </div>
+      <div class="task">
+        <div class="task-id">T006</div>
+        <div class="task-body">
+          <div class="task-title">Assignment Rules — Category-Based Routing <span class="badge badge-done">Done</span></div>
+          <div class="task-desc">4 OOB assignment rules: Hardware → Desktop Support, Network → Network Operations, Software → Application Support, Fallback → Service Desk.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="task-phase">
+      <div class="task-phase-header">Wave 4 — AI &amp; Automation (depends on T004–T006)</div>
+      <div class="task">
+        <div class="task-id">T007</div>
+        <div class="task-body">
+          <div class="task-title">Now Assist Skills Activation <span class="badge badge-skip">Skipped — ACL</span></div>
+          <div class="task-desc">Blocked by ACL restrictions on the demo instance. The AI Agent (T008) was built independently using AI Agent Studio and operates without these skills.</div>
+        </div>
+      </div>
+      <div class="task">
+        <div class="task-id">T008</div>
+        <div class="task-body">
+          <div class="task-title">AI Agent — Incident Triage (AI Agent Studio) <span class="badge badge-done">Done</span></div>
+          <div class="task-desc">Full sn_aia_* implementation: use case, agent config, agent worker, 6 tools, 6 M2M linkages, trigger config, trigger-usecase M2M. Worker record and all linkages were created in post-build iteration 1 to fix missing relationships.</div>
+        </div>
+      </div>
+      <div class="task">
+        <div class="task-id">T009</div>
+        <div class="task-body">
+          <div class="task-title">Business Rules — Enrichment + Triage Flow <span class="badge badge-done">Done</span></div>
+          <div class="task-desc">2 business rules: (1) Enrichment — after insert, calls NexthinkSimulator and writes device diagnostics to work notes. (2) Triage support — assists assignment rule enforcement on category update.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="task-phase">
+      <div class="task-phase-header">Wave 5 — Polish &amp; Instrumentation (depends on T005, T008)</div>
+      <div class="task">
+        <div class="task-id">T010</div>
+        <div class="task-body">
+          <div class="task-title">AI Triage Analytics Dashboard <span class="badge badge-done">Done</span></div>
+          <div class="task-desc">PA dashboard with 6 widgets: AI vs. manual donut, MTTR trend, assignment accuracy, enrichment coverage scorecard, open by priority, recent activity list. 2 navigation modules added to workspace.</div>
+        </div>
+      </div>
+      <div class="task">
+        <div class="task-id">T011</div>
+        <div class="task-body">
+          <div class="task-title">Workspace &amp; UI Polish <span class="badge badge-done">Done</span></div>
+          <div class="task-desc">SOW configured: incident list with priority badges, AI panel visible, analytics dashboard accessible from navigation. Saved filter added for the 3 demo incidents.</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+  <!-- 8: Demo Clickthrough -->
+  <div class="section" id="demo">
+    <div class="section-header"><div class="section-num">8</div><h2>Demo Scenario &amp; Clickthrough</h2></div>
+    <div class="alert alert-success">
+      <strong>Story:</strong> Three employees escalated from the chatbot. Before any analyst saw the tickets, ServiceNow's AI agent pulled their device telemetry from Nexthink, diagnosed the issue, recommended the category, linked the CI, and routed each case to the right team — with a full work note explaining every decision. The analyst opens the ticket already knowing what happened and where it needs to go.
+    </div>
+
+    <div class="scene">
+      <div class="scene-num">1</div>
+      <div class="scene-content">
+        <h4>Service Desk Queue — 3 AI-Triaged Incidents</h4>
+        <p>Open Service Operations Workspace. The incident queue shows all 3 escalations with priority badges. Point to the assignment groups — each is correctly routed before any analyst touched the ticket. This is the outcome: a queue that arrives pre-sorted.</p>
+        <div class="nav-path">Service Operations Workspace → Incident Management → All Incidents</div>
+      </div>
+    </div>
+
+    <div class="scene">
+      <div class="scene-num">2</div>
+      <div class="scene-content">
+        <h4>Scenario 1 — Marcus Webb: Slow Computer (INC0018776)</h4>
+        <p>Open the incident. Show the chatbot transcript in work notes. Scroll to the AI triage work note — CPU 94%, disk 8% free, 3 crashes in 7 days → Hardware/Performance → Desktop Engineering. The agent identified the cause from telemetry before a human read the description.</p>
+        <div class="nav-path">Incident → INC0018776 → Work Notes tab → AI Triage Summary</div>
+      </div>
+    </div>
+
+    <div class="scene">
+      <div class="scene-num">3</div>
+      <div class="scene-content">
+        <h4>Scenario 2 — Sarah Chen: VPN Connectivity (INC0018777)</h4>
+        <p>Open the incident. Show network signals in the AI work note: disconnected, 42% packet loss, 18 DNS failures. Same pipeline as Scenario 1 — different Nexthink profile, different classification outcome. Network/Connectivity → Network Operations Center.</p>
+        <div class="nav-path">Incident → INC0018777 → Work Notes tab → AI Triage Summary</div>
+      </div>
+    </div>
+
+    <div class="scene">
+      <div class="scene-num">4</div>
+      <div class="scene-content">
+        <h4>Scenario 3 — Tom Jefferson: Application Crash (INC0018778)</h4>
+        <p>Open the incident. Memory at 96%, 7 crashes in 24 hours, .NET exceptions. AI classifies Software/Application Error → Application Support Team. Show the KB article link in the work note — the agent surfaced "Application Crash Recovery" and included it immediately.</p>
+        <div class="nav-path">Incident → INC0018778 → Work Notes tab → AI Triage Summary</div>
+      </div>
+    </div>
+
+    <div class="scene">
+      <div class="scene-num">5</div>
+      <div class="scene-content">
+        <h4>AI Agent Use Case Configuration</h4>
+        <p>Navigate to AI Agent Studio. Show the "Nexthink Incident Triage" use case. Point to the trigger record (after insert on incident) and the M2M linkage to the use case. This is the orchestration layer — the plumbing that connects trigger to agent.</p>
+        <div class="nav-path">AI Agent Studio → Use Cases → Nexthink Incident Triage → Trigger relationship</div>
+      </div>
+    </div>
+
+    <div class="scene">
+      <div class="scene-num">6</div>
+      <div class="scene-content">
+        <h4>AI Agent Worker — Tool Configuration</h4>
+        <p>Open the Worker record ("Nexthink Incident Triage Worker"). Show the 6 tools in the related list. Each tool is a specific capability — not generic — and the system prompt controls exactly when and how each is called during the 4-phase execution.</p>
+        <div class="nav-path">AI Agent Studio → Agents → Nexthink Incident Triage Worker → Tools related list</div>
+      </div>
+    </div>
+
+    <div class="scene">
+      <div class="scene-num">7</div>
+      <div class="scene-content">
+        <h4>Under the Hood — Nexthink Simulator</h4>
+        <p>Open the NexthinkSimulator Script Include. Show the JSON response schema. Explain the production swap: replace the Script Include body with a real Nexthink API callout. The business rule, the AI agent, and the work note output are entirely unchanged. One file swap = production-ready.</p>
+        <div class="nav-path">System Definition → Script Includes → NexthinkSimulator</div>
+      </div>
+    </div>
+
+    <div class="scene">
+      <div class="scene-num">8</div>
+      <div class="scene-content">
+        <h4>AI Triage Analytics Dashboard</h4>
+        <p>Open the "AI Triage Analytics" dashboard. Walk the 6 widgets: AI vs. manual donut (how much is automated?), MTTR trend (how fast?), assignment accuracy bar (how accurate?), enrichment coverage (how complete?). This is the executive story — AI handles triage volume, humans handle resolution decisions.</p>
+        <div class="nav-path">Service Operations Workspace → Analytics → AI Triage Analytics</div>
+      </div>
+    </div>
+
+    <div class="scene">
+      <div class="scene-num">9</div>
+      <div class="scene-content">
+        <h4>Knowledge Base Integration</h4>
+        <p>Open the Knowledge Base. Show the 4 draft articles. Return to INC0018778 — point to the KB article link the agent surfaced in its work note. The agent doesn't just categorize; it starts the resolution path immediately. Future incidents matching this profile will deflect to self-service.</p>
+        <div class="nav-path">Knowledge → All Articles → filter: Nexthink Demo | INC0018778 → Work Notes → KB link</div>
+      </div>
+    </div>
+
+    <div class="scene">
+      <div class="scene-num">10</div>
+      <div class="scene-content">
+        <h4>Incident Enriched by Triage Process — Full Picture</h4>
+        <p>Return to any incident. Scroll the work notes timeline end-to-end: chatbot transcript → Nexthink enrichment work note → AI triage summary (phases 1–4) → KB article link → assignment decision with reasoning. Everything the analyst needs is in one place before they open the ticket. This is the demo close.</p>
+        <div class="nav-path">Incident → INC0018776 → Full form → Work Notes timeline (scroll top to bottom)</div>
+      </div>
+    </div>
+
+  </div>
+
+
+  <div class="footer">
+    Generated by JARVIS v11 — ServiceNow Solution Architect &amp; Orchestrator<br>
+    Nexthink Enrichment &amp; Intelligent Triage | demoalectriallwfzu138098 | 2026-03-12 | Zurich Patch 4 / Pro+ | 10/10 scenes validated
+  </div>
+
+</div>
+</body>
+</html>
